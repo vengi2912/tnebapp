@@ -20,16 +20,18 @@ jobs:
           java-version: '17'
           distribution: 'adopt'
 
+      - name: Fix Gradle Memory
+        run: |
+          mkdir -p $HOME/.gradle
+          echo "org.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=512m" > $HOME/.gradle/gradle.properties
+          echo "org.gradle.daemon=true" >> $HOME/.gradle/gradle.properties
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.24.0'
           channel: 'stable'
-- name: Fix Gradle Memory
-        run: |
-          mkdir -p $HOME/.gradle
-          echo "org.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=512m" > $HOME/.gradle/gradle.properties
-          echo "org.gradle.daemon=true" >> $HOME/.gradle/gradle.properties
+
       - name: Get dependencies
         run: flutter pub get
 
