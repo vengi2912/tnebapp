@@ -1,4 +1,6 @@
-name: Build Release APK
+git add build-apk.yml
+git commit -m "CI: fix Gradle wrapper and Android SDK setup"
+git push origin mainname: Build Release APK
 
 on:
   push:
@@ -20,6 +22,18 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
+      - name: Install Gradle CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gradle
+
+      - name: Generate gradle-wrapper.jar if missing
+        run: |
+          if [ ! -f android/gradle/wrapper/gradle-wrapper.jar ]; then
+            cd android
+            gradle wrapper --gradle-version 8.7
+          fi
+
       - name: Remove hardcoded Xmx from gradle files
         run: |
           find android -name "*.gradle" -o -name "gradle.properties" | xargs sed -i 's/-Xmx64m//g'
@@ -37,12 +51,59 @@ jobs:
         with:
           flutter-version: '3.24.0'
           channel: 'stable'
+          android: true
+          cache: true
+
+      - name: Cache Gradle and pub
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.pub-cache
+          key: ${{ runner.os }}-build-${{ hashFiles('**/gradle-wrapper.properties','**/pubspec.yaml') }}
+
+      - name: Verify Flutter and accept Android licenses
+        run: |
+          flutter --version
+          yes | flutter doctor --android-licenses || true
+          flutter doctor -v
 
       - name: Get Flutter dependencies
         run: flutter pub get
 
       - name: Build Release APK
         run: flutter build apk --release
+
+      - name: Install Android SDK components (if available)
+        run: |
+          if [ -n "$ANDROID_SDK_ROOT" ] || [ -n "$ANDROID_HOME" ]; then
+            SDKROOT=${ANDROID_SDK_ROOT:-$ANDROID_HOME}
+            SDKMAN="$SDKROOT/cmdline-tools/latest/bin/sdkmanager"
+            if [ ! -f "$SDKMAN" ]; then
+              SDKMAN="$SDKROOT/cmdline-tools/bin/sdkmanager"
+            fi
+            if [ -x "$SDKMAN" ]; then
+              yes | "$SDKMAN" "platform-tools" "platforms;android-34" "build-tools;34.0.0" || true
+              yes | "$SDKMAN" --licenses || true
+            else
+              echo "sdkmanager not found; skipping explicit SDK component install"
+            fi
+          else
+            echo "ANDROID_SDK_ROOT/ANDROID_HOME not set; skipping SDK component install"
+          fi
+
+      - name: Verify build outputs
+        run: |
+          echo "Listing build outputs:"
+          ls -la build/app/outputs/flutter-apk || true
+          if [ -f build/app/outputs/flutter-apk/app-release.apk ]; then
+            echo "APK found: build/app/outputs/flutter-apk/app-release.apk"
+          else
+            echo "ERROR: APK not found at expected path"
+            ls -R build || true
+            exit 1
+          fi
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
