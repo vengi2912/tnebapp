@@ -20,6 +20,12 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
+      - name: Remove hardcoded Xmx from gradle files
+        run: |
+          find android -name "*.gradle" -o -name "gradle.properties" | xargs sed -i 's/-Xmx64m//g'
+          find android -name "*.gradle" -o -name "gradle.properties" | xargs sed -i 's/-Xmx512m//g'
+          find android -name "*.gradle" -o -name "gradle.properties" | xargs sed -i 's/-Xmx1024m//g'
+
       - name: Set up Java 17
         uses: actions/setup-java@v3
         with:
